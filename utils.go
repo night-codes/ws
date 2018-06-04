@@ -23,7 +23,11 @@ func New(path string, r *tokay.RouterGroup) (cnannel *Channel) {
 		closeCh: make(chan bool),
 	}
 
-	r.WEBSOCKET(path, cnannel.handler)
+	r.GET(path, func(c *tokay.Context) {
+		c.Websocket(func() {
+			cnannel.handler(c)
+		})
+	})
 	cnannel.Read("subscribe", func(a *Adapter) {
 		command := a.StringData()
 		a.Connection().Subscribe(command)
