@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/night-codes/tokay"
@@ -13,6 +14,7 @@ type Adapter struct {
 	connection *Connection
 	data       *[]byte
 	requestID  uint64
+	sent       bool
 }
 
 // NewAdapter makes new *Adapter instance
@@ -57,12 +59,11 @@ func (a *Adapter) Command() string {
 
 // Send message to open connection
 func (a *Adapter) Send(message interface{}) error {
+	if a.sent {
+		return fmt.Errorf("Adaper already sent")
+	}
+	a.sent = true
 	return a.connection.Send(a.command, message, a.requestID)
-}
-
-// SendIfSubscribed sends message to open connection if it subscribed to command
-func (a *Adapter) SendIfSubscribed(message interface{}) error {
-	return a.Subscribers(a.command).Send(a.command, message)
 }
 
 // Connection returns adapter connect instance

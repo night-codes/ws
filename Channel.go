@@ -59,8 +59,11 @@ ReadLoop:
 					requestID := types.Uint64(result[0])
 					command := string(result[1])
 					data := result[2]
-					if fn, exists := channel.readers.GetEx(command); exists {
-						fn(newAdapter(command, connection, &data, requestID))
+					if fns, exists := channel.readers.GetEx(command); exists {
+						adapter := newAdapter(command, connection, &data, requestID)
+						for _, fn := range fns {
+							fn(adapter)
+						}
 					}
 				}
 				return
@@ -87,8 +90,8 @@ func (channel *Channel) Close() {
 	}
 }
 
-// UserByID returns User by id
-func (channel *Channel) UserByID(userID interface{}) *User {
+// User returns User by id
+func (channel *Channel) User(userID interface{}) *User {
 	user, ok := channel.users.GetEx(userID)
 	if !ok {
 		user = newUser(userID)

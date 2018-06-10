@@ -6,16 +6,16 @@ type (
 	readFunc   func(*Adapter)
 	readersMap struct {
 		sync.RWMutex
-		fns map[string]readFunc
+		fns map[string][]readFunc
 	}
 )
 
 func newReaderMap() *readersMap {
-	return &readersMap{fns: make(map[string]readFunc)}
+	return &readersMap{fns: make(map[string][]readFunc)}
 }
 
-func (m *readersMap) Copy() (c map[string]readFunc) {
-	c = make(map[string]readFunc, len(m.fns))
+func (m *readersMap) Copy() (c map[string][]readFunc) {
+	c = make(map[string][]readFunc, len(m.fns))
 
 	m.RLock()
 	for k := range m.fns {
@@ -28,17 +28,21 @@ func (m *readersMap) Copy() (c map[string]readFunc) {
 
 func (m *readersMap) Set(key string, val readFunc) {
 	m.Lock()
-	m.fns[key] = val
-	m.Unlock()
+	defer m.Unlock()
+	if _, ok := m.fns[key]; ok {
+		m.fns[key] = append(m.fns[key], val)
+		return
+	}
+	m.fns[key] = []readFunc{val}
 }
 
 func (m *readersMap) Clear() {
 	m.Lock()
-	m.fns = make(map[string]readFunc)
+	m.fns = make(map[string][]readFunc)
 	m.Unlock()
 }
 
-func (m *readersMap) Replace(newMap map[string]readFunc) {
+func (m *readersMap) Replace(newMap map[string][]readFunc) {
 	m.Lock()
 	m.fns = newMap
 	m.Unlock()
@@ -50,7 +54,7 @@ func (m *readersMap) Delete(key string) {
 	m.Unlock()
 }
 
-func (m *readersMap) Get(key string) readFunc {
+func (m *readersMap) Get(key string) []readFunc {
 	m.RLock()
 	v := m.fns[key]
 	m.RUnlock()
@@ -66,7 +70,7 @@ func (m *readersMap) Len() int {
 	return n
 }
 
-func (m *readersMap) GetEx(key string) (readFunc, bool) {
+func (m *readersMap) GetEx(key string) ([]readFunc, bool) {
 	m.RLock()
 	v, exists := m.fns[key]
 	m.RUnlock()
