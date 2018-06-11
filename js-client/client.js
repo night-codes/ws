@@ -155,8 +155,9 @@
             command = command.replace(/\:/g, '_');
 
             if (typeof msg === "function") {
-                callback = msg;
                 timeout = callback;
+                callback = msg;
+                msg = "";
             }
 
             if (callback) {

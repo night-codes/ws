@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/valyala/fasthttp"
+
 	"github.com/gin-gonic/gin"
 	"github.com/night-codes/tokay"
 	"github.com/night-codes/tokay-websocket"
@@ -53,6 +55,9 @@ func newConnection(connID uint64, channel *Channel, conn connIface, context NetC
 		c.wsClient = len(cc.Request.Header.Get("ws-client")) > 0
 		user, _ := cc.Get("UserID")
 		c.setUser(user)
+	case *fasthttp.RequestCtx:
+		c.wsClient = len(string(cc.Request.Header.Peek("ws-client"))) > 0
+		c.setUser(cc.UserValue("UserID"))
 	case *http.Request:
 		c.wsClient = len(cc.Header.Get("ws-client")) > 0
 		c.setUser(cc.Context().Value("UserID"))

@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/night-codes/tokay"
+	tokayWebsocket "github.com/night-codes/tokay-websocket"
+	"github.com/valyala/fasthttp"
 	"gopkg.in/night-codes/types.v1"
 )
 
@@ -62,6 +64,23 @@ func (channel *Channel) handlerTokay(c *tokay.Context) {
 
 	conn := c.WSConn
 	connection := newConnection(atomic.AddUint64(&nextConnID, 1), channel, conn, c.Copy())
+	channel.readLoop(conn, connection)
+	connection.Close()
+}
+
+// fasthttp websocket handler
+func (channel *Channel) handlerFasthttp(ctx *fasthttp.RequestCtx, conn *tokayWebsocket.Conn) {
+	if channel.closed {
+		ctx.SetStatusCode(http.StatusBadRequest)
+		fmt.Fprintf(ctx, "Channel is closed.")
+		return
+	}
+
+	copyCtx := &fasthttp.RequestCtx{}
+	ctx.Request.CopyTo(&copyCtx.Request)
+	ctx.Response.CopyTo(&copyCtx.Response)
+
+	connection := newConnection(atomic.AddUint64(&nextConnID, 1), channel, conn, copyCtx)
 	channel.readLoop(conn, connection)
 	connection.Close()
 }
@@ -144,7 +163,7 @@ func (channel *Channel) Close() {
 	}
 }
 
-// User returns User by id
+// User by id
 func (channel *Channel) User(userID interface{}) *User {
 	user, ok := channel.users.GetEx(userID)
 	if !ok {

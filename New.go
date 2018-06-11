@@ -1,12 +1,15 @@
 package ws
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/night-codes/tokay"
+	tokayWebsocket "github.com/night-codes/tokay-websocket"
+	"github.com/valyala/fasthttp"
 )
 
 type (
@@ -15,7 +18,7 @@ type (
 )
 
 // New makes new Channel with "net/http".Request
-func New(w http.ResponseWriter, r *http.Request, bufferSizes ...int) (http.HandlerFunc, *Channel) {
+func New(bufferSizes ...int) (http.HandlerFunc, *Channel) {
 	channel := newChannel()
 	wsupgrader := getWsupgrader(bufferSizes...)
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -29,6 +32,26 @@ func New(w http.ResponseWriter, r *http.Request, bufferSizes ...int) (http.Handl
 	}, channel
 }
 
+// NewFasthttp makes new Channel with "github.com/valyala/fasthttp".RequestCtx
+func NewFasthttp(bufferSizes ...int) (fasthttp.RequestHandler, *Channel) {
+	channel := newChannel()
+	if len(bufferSizes) == 0 {
+		bufferSizes = append(bufferSizes, 4096, 4096)
+	} else if len(bufferSizes) == 1 {
+		bufferSizes = append(bufferSizes, bufferSizes[0])
+	}
+
+	return func(ctx *fasthttp.RequestCtx) {
+		if err := tokayWebsocket.Upgrade(ctx, func(conn *tokayWebsocket.Conn) {
+			channel.handlerFasthttp(ctx, conn)
+			channel.subscribeReader()
+		}, bufferSizes[0], bufferSizes[1]); err != nil {
+			ctx.SetStatusCode(http.StatusBadRequest)
+			fmt.Fprintf(ctx, "Failed to set websocket upgrade.")
+		}
+	}, channel
+}
+
 // NewTokay makes new Channel with "github.com/night-codes/tokay".RouterGroup
 func NewTokay(path string, r *tokay.RouterGroup, bufferSizes ...int) *Channel {
 	channel := newChannel()
@@ -37,7 +60,7 @@ func NewTokay(path string, r *tokay.RouterGroup, bufferSizes ...int) *Channel {
 			channel.handlerTokay(c)
 			channel.subscribeReader()
 		}, bufferSizes...); err != nil {
-			c.String(400, "Failed to set websocket upgrade.")
+			c.String(http.StatusBadRequest, "Failed to set websocket upgrade.")
 		}
 	})
 	return channel
@@ -52,7 +75,7 @@ func NewGin(path string, r *gin.RouterGroup, bufferSizes ...int) *Channel {
 			channel.handlerGin(c, conn)
 			channel.subscribeReader()
 		} else {
-			c.String(400, "Failed to set websocket upgrade.")
+			c.String(http.StatusBadRequest, "Failed to set websocket upgrade.")
 		}
 	})
 	return channel
