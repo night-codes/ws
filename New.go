@@ -15,7 +15,7 @@ type (
 )
 
 // New makes new Channel with "net/http".Request
-func New(path string, w http.ResponseWriter, r *http.Request, bufferSizes ...int) (http.HandlerFunc, *Channel) {
+func New(w http.ResponseWriter, r *http.Request, bufferSizes ...int) (http.HandlerFunc, *Channel) {
 	channel := newChannel()
 	wsupgrader := getWsupgrader(bufferSizes...)
 	return func(w http.ResponseWriter, r *http.Request) {
