@@ -4,21 +4,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/night-codes/tokay"
 )
 
-// Adapter is slice of Connect instances
-type Adapter struct {
-	command    string
-	connection *Connection
-	data       *[]byte
-	requestID  uint64
-	sent       bool
-}
+type (
+	// Adapter is slice of Connect instances
+	Adapter struct {
+		command    string
+		connection *Connection
+		data       *[]byte
+		requestID  int64
+		sent       bool
+	}
+	// NetContext is used network context, like *tokay.Context, *gin.Context, echo.Context etc.
+	NetContext interface {
+	}
+)
 
 // NewAdapter makes new *Adapter instance
-func newAdapter(command string, connection *Connection, data *[]byte, requestID uint64) *Adapter {
+func newAdapter(command string, connection *Connection, data *[]byte, requestID int64) *Adapter {
 	return &Adapter{
 		command:    command,
 		connection: connection,
@@ -42,13 +45,13 @@ func (a *Adapter) StringData() string {
 	return strings.Trim(string(*a.data), "\"")
 }
 
-// Context returns copy of *tokay.Context
-func (a *Adapter) Context() *tokay.Context {
+// Context returns copy of NetContext
+func (a *Adapter) Context() NetContext {
 	return a.connection.Context()
 }
 
 // RequestID returns adapter.requestID
-func (a *Adapter) RequestID() uint64 {
+func (a *Adapter) RequestID() int64 {
 	return a.requestID
 }
 

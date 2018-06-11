@@ -32,18 +32,6 @@ func (m *connMap) Set(key uint64, val *Connection) {
 	m.Unlock()
 }
 
-func (m *connMap) Clear() {
-	m.Lock()
-	m.connects = make(map[uint64]*Connection)
-	m.Unlock()
-}
-
-func (m *connMap) Replace(newMap map[uint64]*Connection) {
-	m.Lock()
-	m.connects = newMap
-	m.Unlock()
-}
-
 func (m *connMap) Delete(key uint64) {
 	m.Lock()
 	delete(m.connects, key)
@@ -52,7 +40,7 @@ func (m *connMap) Delete(key uint64) {
 
 func (m *connMap) Get(key uint64) *Connection {
 	m.RLock()
-	v := m.connects[key]
+	v, _ := m.connects[key]
 	m.RUnlock()
 
 	return v

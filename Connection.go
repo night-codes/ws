@@ -3,14 +3,16 @@ package ws
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
-	"gopkg.in/night-codes/types.v1"
-
+	"github.com/gin-gonic/gin"
 	"github.com/night-codes/tokay"
 	"github.com/night-codes/tokay-websocket"
+	"gopkg.in/night-codes/types.v1"
 )
 
 // Connection instance
@@ -18,29 +20,48 @@ import (
 type Connection struct {
 	id              uint64
 	user            *User
-	conn            *websocket.Conn
+	conn            connIface
 	closed          bool
 	subscribes      map[string]bool
 	subscribesMutex sync.RWMutex
 	writeMutex      sync.RWMutex
 	wsClient        bool
 	channel         *Channel
-	context         *tokay.Context
-	requestID       uint64
+	context         NetContext
+	requestID       int64
+	timeout         time.Duration
+	UseBinary       bool
 }
 
 // NewConnection creates new *Connection instance
-func newConnection(connID uint64, channel *Channel, conn *websocket.Conn, context *tokay.Context) *Connection {
+func newConnection(connID uint64, channel *Channel, conn connIface, context NetContext) *Connection {
 	c := &Connection{
 		id:         connID,
 		channel:    channel,
 		conn:       conn,
-		wsClient:   len(context.GetHeader("ws-client")) > 0,
 		context:    context,
 		subscribes: make(map[string]bool),
+		timeout:    time.Second * 30,
 	}
 	channel.connMap.Set(connID, c)
-	c.setUser(context.Get("UserID"))
+
+	switch cc := context.(type) {
+	case *tokay.Context:
+		c.wsClient = len(cc.GetHeader("ws-client")) > 0
+		c.setUser(cc.Get("UserID"))
+	case *gin.Context:
+		c.wsClient = len(cc.Request.Header.Get("ws-client")) > 0
+		user, _ := cc.Get("UserID")
+		c.setUser(user)
+	case *http.Request:
+		c.wsClient = len(cc.Header.Get("ws-client")) > 0
+		c.setUser(cc.Context().Value("UserID"))
+		// Example:
+		// import "net/http"
+		// import "context"
+		// ...
+		// request.WithContext(context.WithValue(request.Context(), "UserID", 12345))
+	}
 	return c
 }
 
@@ -62,13 +83,30 @@ func (c *Connection) ID() uint64 {
 }
 
 // Request send message to open connect and wait for answer
-func (c *Connection) Request(command string, message interface{}) ([]byte, error) {
-	c.Send(command, message, 0, atomic.AddUint64(&c.requestID, 1))
-	return []byte{}, nil
+func (c *Connection) Request(command string, message interface{}, timeout ...time.Duration) ([]byte, error) {
+	requestID := atomic.AddInt64(&c.requestID, -1)
+	resultCh := make(chan []byte)
+	timeoutD := c.timeout
+
+	if len(timeout) > 0 {
+		timeoutD = timeout[0]
+	}
+	c.channel.requests.Set(requestID, func(a *Adapter) {
+		resultCh <- a.Data()
+	})
+	c.Send(command, message, 0, requestID)
+
+	select {
+	case result := <-resultCh:
+		return result, nil
+	case <-time.Tick(timeoutD):
+		c.channel.requests.Delete(requestID)
+		return []byte{}, fmt.Errorf("\"%s\" request timeout", command)
+	}
 }
 
-// Context returns copy of *tokay.Context
-func (c *Connection) Context() *tokay.Context {
+// Context returns copy of NetContext
+func (c *Connection) Context() NetContext {
 	return c.context
 }
 
@@ -141,14 +179,14 @@ func (c *Connection) Subscribe(command string) {
 }
 
 // Send message to open connect
-func (c *Connection) Send(command string, message interface{}, requestID ...uint64) error {
+func (c *Connection) Send(command string, message interface{}, requestID ...int64) error {
 	if c.closed {
 		return fmt.Errorf("Connection %d already clossed", c.ID())
 	}
 
 	if message != nil {
-		var reqID uint64
-		var srvReqID uint64
+		var reqID int64
+		var srvReqID int64
 		if len(requestID) > 0 {
 			reqID = requestID[0]
 			if len(requestID) == 2 {
@@ -172,7 +210,7 @@ func (c *Connection) Send(command string, message interface{}, requestID ...uint
 
 			strRequestID := types.String(reqID)
 			if srvReqID != 0 {
-				strRequestID = "-" + types.String(srvReqID)
+				strRequestID = types.String(srvReqID)
 			}
 			*msg = append([]byte(strRequestID+":"+command+":"), *msg...)
 		} else {
@@ -190,9 +228,9 @@ func (c *Connection) Send(command string, message interface{}, requestID ...uint
 			return fmt.Errorf("WS: Connection.Send: json.Marshal: %v", err)
 		}
 
-		wstype := websocket.BinaryMessage
-		if dev {
-			wstype = websocket.TextMessage
+		wstype := websocket.TextMessage
+		if c.UseBinary {
+			wstype = websocket.BinaryMessage
 		}
 
 		c.writeMutex.Lock()

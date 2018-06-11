@@ -3,18 +3,17 @@ package ws
 import "sync"
 
 type (
-	readFunc   func(*Adapter)
-	readersMap struct {
+	requestsMap struct {
 		sync.RWMutex
-		fns map[string][]readFunc
+		fns map[int64][]readFunc
 	}
 )
 
-func newReaderMap() *readersMap {
-	return &readersMap{fns: make(map[string][]readFunc)}
+func newRequestsMap() *requestsMap {
+	return &requestsMap{fns: make(map[int64][]readFunc)}
 }
 
-func (m *readersMap) Set(key string, val readFunc) {
+func (m *requestsMap) Set(key int64, val readFunc) {
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.fns[key]; ok {
@@ -23,14 +22,13 @@ func (m *readersMap) Set(key string, val readFunc) {
 	}
 	m.fns[key] = []readFunc{val}
 }
-
-func (m *readersMap) Delete(key string) {
+func (m *requestsMap) Delete(key int64) {
 	m.Lock()
 	delete(m.fns, key)
 	m.Unlock()
 }
 
-func (m *readersMap) Get(key string) []readFunc {
+func (m *requestsMap) Get(key int64) []readFunc {
 	m.RLock()
 	v, _ := m.fns[key]
 	m.RUnlock()
@@ -38,7 +36,7 @@ func (m *readersMap) Get(key string) []readFunc {
 	return v
 }
 
-func (m *readersMap) Len() int {
+func (m *requestsMap) Len() int {
 	m.RLock()
 	n := len(m.fns)
 	m.RUnlock()
@@ -46,7 +44,7 @@ func (m *readersMap) Len() int {
 	return n
 }
 
-func (m *readersMap) GetEx(key string) ([]readFunc, bool) {
+func (m *requestsMap) GetEx(key int64) ([]readFunc, bool) {
 	m.RLock()
 	v, exists := m.fns[key]
 	m.RUnlock()

@@ -4,76 +4,130 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"sync/atomic"
 
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/night-codes/tokay"
 	"gopkg.in/night-codes/types.v1"
 )
 
 // Channel is websocket route
-type Channel struct {
-	connMap *connMap
-	users   *usersMap
-	subscrs *subscrMap
-	readers *readersMap
-	closeCh chan bool
-	closed  bool
-}
+type (
+	Channel struct {
+		connMap  *connMap
+		users    *usersMap
+		subscrs  *subscrMap
+		readers  *readersMap
+		requests *requestsMap
+		closeCh  chan bool
+		closed   bool
+	}
 
-type messageStruct struct {
-	MessageType int
-	Message     []byte
-	Err         error
-}
+	messageStruct struct {
+		Message []byte
+		Err     error
+	}
+
+	connIface interface {
+		SetReadLimit(limit int64)
+		ReadMessage() (messageType int, p []byte, err error)
+		WriteMessage(messageType int, data []byte) error
+		Close() error
+	}
+)
 
 var nextConnID uint64
 
-// websocket handler
-func (channel *Channel) handler(c *tokay.Context) {
+func newChannel() *Channel {
+	return &Channel{
+		connMap:  newConnMap(),
+		users:    newUsersMap(),
+		subscrs:  newSubscrMap(),
+		readers:  newReaderMap(),
+		requests: newRequestsMap(),
+		closeCh:  make(chan bool),
+	}
+}
+
+// tokay websocket handler
+func (channel *Channel) handlerTokay(c *tokay.Context) {
 	if channel.closed {
-		c.String(400, "Channel is closed. Wait.")
+		c.String(400, "Channel is closed.")
 		return
 	}
 
 	conn := c.WSConn
 	connection := newConnection(atomic.AddUint64(&nextConnID, 1), channel, conn, c.Copy())
+	channel.readLoop(conn, connection)
+	connection.Close()
+}
 
-ReadLoop:
+// gin websocket handler
+func (channel *Channel) handlerGin(c *gin.Context, conn *websocket.Conn) {
+	if channel.closed {
+		c.String(400, "Channel is closed.")
+		return
+	}
+
+	connection := newConnection(atomic.AddUint64(&nextConnID, 1), channel, conn, c.Copy())
+	channel.readLoop(conn, connection)
+	connection.Close()
+}
+
+// net websocket handler
+func (channel *Channel) handlerNetHTTP(w http.ResponseWriter, r *http.Request, conn *websocket.Conn) {
+	if channel.closed {
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, "Channel is closed.\n")
+		return
+	}
+
+	connection := newConnection(atomic.AddUint64(&nextConnID, 1), channel, conn, r)
+	channel.readLoop(conn, connection)
+	connection.Close()
+}
+
+func (channel *Channel) readLoop(conn connIface, connection *Connection) {
 	for {
 		resultCh := make(chan *messageStruct)
 
 		go func() {
-			messageType, message, err := conn.ReadMessage()
-			resultCh <- &messageStruct{messageType, message, err}
+			_, message, err := conn.ReadMessage()
+			resultCh <- &messageStruct{message, err}
 		}()
 
 		select {
 		case result := <-resultCh:
 			if result.Err != nil {
-				break ReadLoop
+				return
 			}
 			go func(message []byte) {
 				var result = bytes.SplitN(message, []byte(":"), 3)
 				if len(result) == 3 {
-					requestID := types.Uint64(result[0])
+					requestID := types.Int64(result[0])
 					command := string(result[1])
 					data := result[2]
-					if fns, exists := channel.readers.GetEx(command); exists {
+					if requestID < 0 { // answer to the request from server
+						if fns, ex := channel.requests.GetEx(requestID); ex && len(fns) > 0 {
+							fns[0](newAdapter(command, connection, &data, requestID))
+							channel.requests.Delete(requestID)
+						}
+					} else if fns, exists := channel.readers.GetEx(command); exists {
 						adapter := newAdapter(command, connection, &data, requestID)
 						for _, fn := range fns {
 							fn(adapter)
 						}
 					}
 				}
-				return
 			}(result.Message)
 		case channel.closed = <-channel.closeCh:
-			break ReadLoop
+			return
 		}
 	}
-
-	connection.Close()
 }
 
 // Read is client message (request) handler
@@ -133,4 +187,11 @@ func (channel *Channel) Subscribers(commands string) Connections {
 		}
 	}
 	return ret
+}
+
+func (channel *Channel) subscribeReader() {
+	channel.Read("subscribe", func(a *Adapter) {
+		command := a.StringData()
+		a.Connection().Subscribe(command)
+	})
 }

@@ -13,12 +13,13 @@
         return new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + path);
     }
 
+
     function Channel(url) {
         var global = global || window;
         var document = global.document;
         var sock = null;
         var prevID = 0;
-        var requestTimeout = 0;
+        var requestTimeout = 30;
         var subscriptions = {};
         var self = this;
         var cid = "" + (Math.random().toFixed(16).substring(2) + new Date().valueOf()) + url;
@@ -79,10 +80,10 @@
                     return
                 }
 
-                if (result.requestID) {
+                if (result.requestID > 0) {
                     trigger("request:" + result.command + ":" + result.requestID, result.data)
                 } else {
-                    trigger("read:" + result.command, result.data)
+                    trigger("read:" + result.command, result)
                 }
             }
 
@@ -92,7 +93,6 @@
             };
             sock.onclose = function (e) {
                 setTimeout(connect, 300);
-
             };
             sock.onmessage = function (e) {
                 if (e && typeof e.data === 'string' || e.data instanceof Blob) {
@@ -102,14 +102,14 @@
                             done(reader.result)
                         };
                         reader.readAsText(e.data);
-                    } else { // строковые данные (json)
+                    } else {
                         done(e.data)
                     }
                 }
             };
         }());
 
-        // отправить сообщение в сокет и получить ответ в коллбек
+        // send message to socket and get answer to callback(data, err)
         self.send = function (command, msg, requestID) {
             command = command.replace(/\:/g, '_');
             requestID = requestID || 0;
@@ -132,7 +132,6 @@
                 sock.send(msg);
             } else {
                 one('wsConnect', function () {
-
                     sock.send(msg);
                 });
             }
@@ -141,7 +140,13 @@
 
         // server messages handler
         self.read = function (command, callback) {
-            on("read:" + command, callback)
+            on("read:" + command, function (result) {
+                callback(result.data, function (msg) {
+                    if (result.srvRequestID) {
+                        self.send(command, msg, result.srvRequestID)
+                    }
+                });
+            })
         }
 
         // send request to server and wait answer to handler
@@ -149,13 +154,24 @@
             var requestID = 0;
             command = command.replace(/\:/g, '_');
 
+            if (typeof msg === "function") {
+                callback = msg;
+                timeout = callback;
+            }
+
             if (callback) {
                 requestID = ++prevID;
                 timeout = timeout || requestTimeout;
-                one("request:" + command + ":" + requestID, callback)
+                one("request:" + command + ":" + requestID, function (data) {
+                    if (data instanceof Error) {
+                        callback(undefined, data);
+                        return
+                    }
+                    callback(data, undefined);
+                })
                 if (timeout > 0) {
                     setTimeout(function () {
-                        trigger("request:" + result.command + ":" + result.requestID)
+                        trigger("request:" + command + ":" + requestID, new Error("\"" + command + "\" request timeout"))
                     }, timeout);
                 }
             }
