@@ -9,6 +9,7 @@ import (
 type (
 	// Adapter is slice of Connect instances
 	Adapter struct {
+		client     *Client
 		command    string
 		connection *Connection
 		data       *[]byte
@@ -16,8 +17,7 @@ type (
 		sent       bool
 	}
 	// NetContext is used network context, like *tokay.Context, *gin.Context, echo.Context etc.
-	NetContext interface {
-	}
+	NetContext interface{}
 )
 
 // NewAdapter makes new *Adapter instance
@@ -66,6 +66,10 @@ func (a *Adapter) Send(message interface{}) error {
 		return fmt.Errorf("Adaper already sent")
 	}
 	a.sent = true
+	if a.client != nil {
+		a.client.Send(a.command, message, a.requestID)
+		return nil
+	}
 	return a.connection.Send(a.command, message, a.requestID)
 }
 

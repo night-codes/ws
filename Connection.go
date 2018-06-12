@@ -33,6 +33,7 @@ type Connection struct {
 	requestID       int64
 	timeout         time.Duration
 	UseBinary       bool
+	origin          string
 }
 
 // NewConnection creates new *Connection instance
@@ -49,16 +50,20 @@ func newConnection(connID uint64, channel *Channel, conn connIface, context NetC
 
 	switch cc := context.(type) {
 	case *tokay.Context:
+		c.origin = cc.GetHeader("Origin")
 		c.wsClient = len(cc.GetHeader("ws-client")) > 0
 		c.setUser(cc.Get("UserID"))
 	case *gin.Context:
+		c.origin = cc.Request.Header.Get("Origin")
 		c.wsClient = len(cc.Request.Header.Get("ws-client")) > 0
 		user, _ := cc.Get("UserID")
 		c.setUser(user)
 	case *fasthttp.RequestCtx:
+		c.origin = string(cc.Request.Header.Peek("Origin"))
 		c.wsClient = len(string(cc.Request.Header.Peek("ws-client"))) > 0
 		c.setUser(cc.UserValue("UserID"))
 	case *http.Request:
+		c.origin = cc.Header.Get("Origin")
 		c.wsClient = len(cc.Header.Get("ws-client")) > 0
 		c.setUser(cc.Context().Value("UserID"))
 		// Example:
@@ -82,12 +87,17 @@ func (c *Connection) User() *User {
 	return c.user
 }
 
+// Origin of connection
+func (c *Connection) Origin() string {
+	return c.origin
+}
+
 // ID of Connection
 func (c *Connection) ID() uint64 {
 	return c.id
 }
 
-// Request send message to open connect and wait for answer
+// Request information from client
 func (c *Connection) Request(command string, message interface{}, timeout ...time.Duration) ([]byte, error) {
 	requestID := atomic.AddInt64(&c.requestID, -1)
 	resultCh := make(chan []byte)

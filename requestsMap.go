@@ -5,22 +5,19 @@ import "sync"
 type (
 	requestsMap struct {
 		sync.RWMutex
-		fns map[int64][]readFunc
+		fns map[int64]readFunc
 	}
 )
 
 func newRequestsMap() *requestsMap {
-	return &requestsMap{fns: make(map[int64][]readFunc)}
+	return &requestsMap{fns: make(map[int64]readFunc)}
 }
 
 func (m *requestsMap) Set(key int64, val readFunc) {
 	m.Lock()
 	defer m.Unlock()
-	if _, ok := m.fns[key]; ok {
-		m.fns[key] = append(m.fns[key], val)
-		return
-	}
-	m.fns[key] = []readFunc{val}
+
+	m.fns[key] = val
 }
 func (m *requestsMap) Delete(key int64) {
 	m.Lock()
@@ -28,7 +25,7 @@ func (m *requestsMap) Delete(key int64) {
 	m.Unlock()
 }
 
-func (m *requestsMap) Get(key int64) []readFunc {
+func (m *requestsMap) Get(key int64) readFunc {
 	m.RLock()
 	v, _ := m.fns[key]
 	m.RUnlock()
@@ -44,7 +41,7 @@ func (m *requestsMap) Len() int {
 	return n
 }
 
-func (m *requestsMap) GetEx(key int64) ([]readFunc, bool) {
+func (m *requestsMap) GetEx(key int64) (readFunc, bool) {
 	m.RLock()
 	v, exists := m.fns[key]
 	m.RUnlock()

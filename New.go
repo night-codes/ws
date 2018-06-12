@@ -23,8 +23,7 @@ func New(bufferSizes ...int) (http.HandlerFunc, *Channel) {
 	wsupgrader := getWsupgrader(bufferSizes...)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if conn, err := wsupgrader.Upgrade(w, r, nil); err == nil {
-			channel.handlerNetHTTP(w, r, conn)
-			channel.subscribeReader()
+			channel.handler(conn, r)
 		} else {
 			w.WriteHeader(http.StatusBadRequest)
 			io.WriteString(w, "Failed to set websocket upgrade.\n")
@@ -42,9 +41,12 @@ func NewFasthttp(bufferSizes ...int) (fasthttp.RequestHandler, *Channel) {
 	}
 
 	return func(ctx *fasthttp.RequestCtx) {
+		copyCtx := &fasthttp.RequestCtx{}
+		ctx.Request.CopyTo(&copyCtx.Request)
+		ctx.Response.CopyTo(&copyCtx.Response)
+
 		if err := tokayWebsocket.Upgrade(ctx, func(conn *tokayWebsocket.Conn) {
-			channel.handlerFasthttp(ctx, conn)
-			channel.subscribeReader()
+			channel.handler(conn, copyCtx)
 		}, bufferSizes[0], bufferSizes[1]); err != nil {
 			ctx.SetStatusCode(http.StatusBadRequest)
 			fmt.Fprintf(ctx, "Failed to set websocket upgrade.")
@@ -56,9 +58,9 @@ func NewFasthttp(bufferSizes ...int) (fasthttp.RequestHandler, *Channel) {
 func NewTokay(path string, r *tokay.RouterGroup, bufferSizes ...int) *Channel {
 	channel := newChannel()
 	r.GET(path, func(c *tokay.Context) {
+		cc := c.Copy()
 		if err := c.Websocket(func() {
-			channel.handlerTokay(c)
-			channel.subscribeReader()
+			channel.handler(c.WSConn, cc)
 		}, bufferSizes...); err != nil {
 			c.String(http.StatusBadRequest, "Failed to set websocket upgrade.")
 		}
@@ -71,9 +73,9 @@ func NewGin(path string, r *gin.RouterGroup, bufferSizes ...int) *Channel {
 	channel := newChannel()
 	wsupgrader := getWsupgrader(bufferSizes...)
 	r.GET(path, func(c *gin.Context) {
+		cc := c.Copy()
 		if conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil); err == nil {
-			channel.handlerGin(c, conn)
-			channel.subscribeReader()
+			channel.handler(conn, cc)
 		} else {
 			c.String(http.StatusBadRequest, "Failed to set websocket upgrade.")
 		}
