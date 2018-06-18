@@ -105,7 +105,7 @@ func (channel *Channel) Read(command string, fn func(*Adapter)) {
 
 // Close ws instance connections
 func (channel *Channel) Close() {
-	channel.closeCh <- true
+	go func() { channel.closeCh <- true }()
 	cs := channel.connMap.Copy()
 	for _, v := range cs {
 		v.Close()
