@@ -128,78 +128,81 @@ func (c *Client) ChangeURL(url string) {
 
 func (c *Client) connect() {
 	for {
-		var err error
-		c.conn, _, err = c.dialer.Dial(c.url, http.Header{
-			"ws-client": []string{"true"},
-		})
-		if err != nil {
-			return
-		}
-
-		if c.debug {
-			fmt.Printf("ws.Client: + Connected to %s\n", c.url)
-		}
-		c.Reconnect.Emit(true)
-		c.connected = true
-		closed := make(chan bool)
-		go func() {
-			for {
-				select {
-				case msg := <-c.send:
-					c.conn.WriteMessage(websocket.TextMessage, append([]byte(types.String(msg.requestID)+":"+msg.command+":"), msg.data...))
-				case <-closed:
-					return
-				}
+		func() {
+			var err error
+			c.conn, _, err = c.dialer.Dial(c.url, http.Header{
+				"ws-client": []string{"true"},
+			})
+			if err != nil {
+				return
 			}
-		}()
 
-		for _, command := range c.subscriptions {
-			c.Send("subscribe", command)
-		}
-
-	cycle:
-		for {
-			chMessage := make(chan []byte)
+			if c.debug {
+				fmt.Printf("ws.Client: + Connected to %s\n", c.url)
+			}
+			go c.Reconnect.Emit(true)
+			c.connected = true
+			closed := make(chan bool)
 			go func() {
-				_, message, err := c.conn.ReadMessage()
-				if err != nil {
-					c.chBreak <- true
-				}
-				chMessage <- message
-			}()
-
-			select {
-			case message := <-chMessage:
-				result := bytes.SplitN(message, []byte(":"), 3)
-				if len(result) == 3 {
-					requestID := types.Int64(result[0])
-					command := string(result[1])
-					data := result[2]
-
-					if requestID > 0 { // answer to the request from client
-						if fn, ex := c.requests.GetEx(requestID); ex {
-							fn(newAdapter(command, nil, &data, requestID))
-							c.requests.Delete(requestID)
-						}
-					} else if fns, exists := c.readers.GetEx(command); exists {
-						adapter := newAdapter(command, nil, &data, requestID)
-						adapter.client = c
-						for _, fn := range fns {
-							fn(adapter)
-						}
+				for {
+					select {
+					case msg := <-c.send:
+						c.conn.WriteMessage(websocket.TextMessage, append([]byte(types.String(msg.requestID)+":"+msg.command+":"), msg.data...))
+					case <-closed:
+						return
 					}
 				}
-			case <-c.chBreak:
-				break cycle
-			}
-		}
+			}()
 
-		if c.debug {
-			fmt.Printf("ws.Client: - Connection closed: %s\n", c.url)
-		}
-		c.connected = false
-		c.conn.Close()
-		closed <- true
+			for _, command := range c.subscriptions {
+				c.Send("subscribe", command)
+			}
+
+		cycle:
+			for {
+				chMessage := make(chan []byte)
+				go func() {
+					_, message, err := c.conn.ReadMessage()
+					if err != nil {
+						c.chBreak <- true
+					}
+					chMessage <- message
+				}()
+
+				select {
+				case message := <-chMessage:
+					result := bytes.SplitN(message, []byte(":"), 3)
+					if len(result) == 3 {
+						requestID := types.Int64(result[0])
+						command := string(result[1])
+						data := result[2]
+
+						if requestID > 0 { // answer to the request from client
+							if fn, ex := c.requests.GetEx(requestID); ex {
+								fn(newAdapter(command, nil, &data, requestID))
+								c.requests.Delete(requestID)
+							}
+						} else if fns, exists := c.readers.GetEx(command); exists {
+							adapter := newAdapter(command, nil, &data, requestID)
+							adapter.client = c
+							for _, fn := range fns {
+								fn(adapter)
+							}
+						}
+					}
+				case <-c.chBreak:
+					break cycle
+				}
+			}
+
+			if c.debug {
+				fmt.Printf("ws.Client: - Connection closed: %s\n", c.url)
+			}
+			c.connected = false
+			c.conn.Close()
+			closed <- true
+		}()
+
 		time.Sleep(time.Second / 20)
 	}
 }
