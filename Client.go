@@ -18,6 +18,7 @@ type (
 	// Client ws instance
 	Client struct {
 		url           string
+		chBreak       chan bool
 		dialer        *websocket.Dialer
 		conn          *websocket.Conn
 		send          chan *sndMsg
@@ -56,6 +57,7 @@ func NewClient(url string, debug ...bool) *Client {
 		timeout:   time.Second * 30,
 		debug:     debug[0],
 		Reconnect: events.New(),
+		chBreak:   make(chan bool, 2),
 	}
 
 	go ws.connect()
@@ -118,6 +120,12 @@ func (c *Client) Read(command string, fn func(*Adapter)) {
 	c.readers.Set(command, fn)
 }
 
+// ChangeURL for client connection
+func (c *Client) ChangeURL(url string) {
+	c.url = url
+	c.chBreak <- true
+}
+
 func (c *Client) connect() {
 	for {
 		var err error
@@ -149,29 +157,40 @@ func (c *Client) connect() {
 			c.Send("subscribe", command)
 		}
 
+	cycle:
 		for {
-			_, message, err := c.conn.ReadMessage()
-			if err != nil {
-				break
-			}
-			result := bytes.SplitN(message, []byte(":"), 3)
-			if len(result) == 3 {
-				requestID := types.Int64(result[0])
-				command := string(result[1])
-				data := result[2]
+			chMessage := make(chan []byte)
+			go func() {
+				_, message, err := c.conn.ReadMessage()
+				if err != nil {
+					c.chBreak <- true
+				}
+				chMessage <- message
+			}()
 
-				if requestID > 0 { // answer to the request from client
-					if fn, ex := c.requests.GetEx(requestID); ex {
-						fn(newAdapter(command, nil, &data, requestID))
-						c.requests.Delete(requestID)
-					}
-				} else if fns, exists := c.readers.GetEx(command); exists {
-					adapter := newAdapter(command, nil, &data, requestID)
-					adapter.client = c
-					for _, fn := range fns {
-						fn(adapter)
+			select {
+			case message := <-chMessage:
+				result := bytes.SplitN(message, []byte(":"), 3)
+				if len(result) == 3 {
+					requestID := types.Int64(result[0])
+					command := string(result[1])
+					data := result[2]
+
+					if requestID > 0 { // answer to the request from client
+						if fn, ex := c.requests.GetEx(requestID); ex {
+							fn(newAdapter(command, nil, &data, requestID))
+							c.requests.Delete(requestID)
+						}
+					} else if fns, exists := c.readers.GetEx(command); exists {
+						adapter := newAdapter(command, nil, &data, requestID)
+						adapter.client = c
+						for _, fn := range fns {
+							fn(adapter)
+						}
 					}
 				}
+			case <-c.chBreak:
+				break cycle
 			}
 		}
 

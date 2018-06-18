@@ -163,3 +163,12 @@ func (channel *Channel) subscribeReader() {
 		a.Connection().Subscribe(command)
 	})
 }
+
+// GetConnectIDs from Channel
+func (channel *Channel) GetConnectIDs() (connectIDs map[uint64]bool) {
+	connectIDs = map[uint64]bool{}
+	for k := range channel.connMap.Copy() {
+		connectIDs[k] = true
+	}
+	return
+}
