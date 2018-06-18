@@ -109,7 +109,11 @@ func (c *Connection) Request(command string, message interface{}, timeout ...tim
 	c.channel.requests.Set(requestID, func(a *Adapter) {
 		resultCh <- a.Data()
 	})
-	c.Send(command, message, 0, requestID)
+
+	if err := c.Send(command, message, 0, requestID); err != nil {
+		c.channel.requests.Delete(requestID)
+		return []byte{}, err
+	}
 
 	select {
 	case result := <-resultCh:

@@ -67,8 +67,7 @@ func (a *Adapter) Send(message interface{}) error {
 	}
 	a.sent = true
 	if a.client != nil {
-		a.client.Send(a.command, message, a.requestID)
-		return nil
+		return a.client.Send(a.command, message, a.requestID)
 	}
 	return a.connection.Send(a.command, message, a.requestID)
 }

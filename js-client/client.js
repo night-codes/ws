@@ -20,7 +20,6 @@
         var sock = null;
         var prevID = 0;
         var requestTimeout = 30;
-        var subscriptions = {};
         var self = this;
         var cid = "" + (Math.random().toFixed(16).substring(2) + new Date().valueOf()) + url;
 

@@ -65,7 +65,10 @@ func (c *Client) Request(command string, message interface{}, timeout ...time.Du
 	c.requests.Set(requestID, func(a *Adapter) {
 		resultCh <- a.Data()
 	})
-	c.Send(command, message, requestID)
+	if err := c.Send(command, message, requestID); err != nil {
+		c.requests.Delete(requestID)
+		return []byte{}, err
+	}
 
 	select {
 	case result := <-resultCh:
@@ -77,7 +80,7 @@ func (c *Client) Request(command string, message interface{}, timeout ...time.Du
 }
 
 // Send message to server
-func (c *Client) Send(command string, message interface{}, requestID ...int64) error {
+func (c *Client) Send(command string, message interface{}, requestID ...int64) (err error) {
 	go func() {
 		var reqID int64
 		if len(requestID) > 0 {
@@ -86,7 +89,10 @@ func (c *Client) Send(command string, message interface{}, requestID ...int64) e
 
 		bytesMessage, ok := message.([]byte)
 		if !ok {
-			bytesMessage, _ = json.Marshal(message)
+			bytesMessage, err = json.Marshal(message)
+			if err != nil {
+				return
+			}
 		}
 
 		c.send <- &sndMsg{
