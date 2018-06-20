@@ -40,7 +40,7 @@
                 } else {
                     fn();
                 }
-            }
+            };
             document.addEventListener(cid + type, cb);
         }
 
@@ -50,9 +50,9 @@
 
             if (document.dispatchEvent) {
                 if (typeof CustomEvent === "function") {
-                    event = new CustomEvent(t, { "result": data })
+                    event = new CustomEvent(t, { "result": data });
                 } else if (typeof Event === "function") {
-                    event = new Event(t, { "result": data })
+                    event = new Event(t, { "result": data });
                 } else if (document.createEvent) {
                     event = document.createEvent('HTMLEvents');
                     event.initEvent(t, true, true);
@@ -67,23 +67,23 @@
             event = document.createEventObject();
             event.result = data;
             document.fireEvent('on' + t, event);
-            return
-        };
+            return;
+        }
 
         (function connect() {
             function done(result) {
                 try {
                     result = JSON.parse(result);
                 } catch (err) {
-                    return
+                    return;
                 }
 
                 if (result.requestID > 0) {
-                    trigger("request:" + result.command + ":" + result.requestID, result.data)
+                    trigger("request:" + result.command + ":" + result.requestID, result.data);
                 } else {
-                    trigger("read:" + result.command, result)
+                    trigger("read:" + result.command, result);
                 }
-                trigger("came", result.command)
+                trigger("came", result.command);
             }
 
             sock = createWebSocket(url);
@@ -98,11 +98,11 @@
                     if (e.data instanceof Blob) { // извлекаем бинарные данные
                         var reader = new FileReader();
                         reader.onload = function () {
-                            done(reader.result)
+                            done(reader.result);
                         };
                         reader.readAsText(e.data);
                     } else {
-                        done(e.data)
+                        done(e.data);
                     }
                 }
             };
@@ -112,7 +112,7 @@
         self.send = function (command, msg, requestID) {
             command = command.replace(/\:/g, '_');
             requestID = requestID || 0;
-            var msg = JSON.stringify(msg);
+            msg = JSON.stringify(msg);
             if (global.dev) {
                 msg = [requestID, command, msg].join(":");
             } else {
@@ -134,7 +134,7 @@
                     sock.send(msg);
                 });
             }
-        }
+        };
 
 
         // server messages handler
@@ -142,11 +142,11 @@
             on("read:" + command, function (result) {
                 callback(result.data, function (msg) {
                     if (result.srvRequestID) {
-                        self.send(command, msg, result.srvRequestID)
+                        self.send(command, msg, result.srvRequestID);
                     }
                 });
-            })
-        }
+            });
+        };
 
         // send request to server and wait answer to handler
         self.request = function (command, msg, callback, timeout) {
@@ -165,23 +165,23 @@
                 one("request:" + command + ":" + requestID, function (data) {
                     if (data instanceof Error) {
                         callback(undefined, data);
-                        return
+                        return;
                     }
                     callback(data, undefined);
-                })
+                });
                 if (timeout > 0) {
                     setTimeout(function () {
-                        trigger("request:" + command + ":" + requestID, new Error("\"" + command + "\" request timeout"))
+                        trigger("request:" + command + ":" + requestID, new Error("\"" + command + "\" request timeout"));
                     }, timeout);
                 }
             }
-            self.send(command, msg, requestID)
-        }
+            self.send(command, msg, requestID);
+        };
 
         // set request timeout
         self.setRequestTimeout = function (timeout) {
             requestTimeout = timeout;
-        }
+        };
 
         // повесить обработчик на сообщения, санкционированные сервером (без запроса)
         self.subscribe = function (command) {
@@ -191,10 +191,10 @@
             on('wsConnect', function () {
                 self.send("subscribe", command);
             });
-        }
+        };
 
         self.wait = function (commands, callback) {
-            var cmds = {}
+            var cmds = {};
             commands.forEach(function (command) {
                 cmds[command] = true;
             });
@@ -205,13 +205,13 @@
                 }
                 if (Object.keys(cmds).length < 1) {
                     setTimeout(callback, 1);
-                    return
+                    return;
                 }
                 one('came', wt);
             }
             wt();
-        }
-    };
+        };
+    }
 
     exports.getChannel = function (url) {
         if (typeof url !== 'string') {
@@ -223,6 +223,6 @@
         }
 
         return channels[url];
-    }
+    };
 
 }));
