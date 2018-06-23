@@ -55,7 +55,23 @@ func (channel *Channel) handler(conn connIface, context NetContext) {
 	}
 	connection := newConnection(atomic.AddUint64(&nextConnID, 1), channel, conn, context)
 	channel.subscribeReader()
+	go func() {
+		if fns, exists := channel.readers.GetEx("ws-server-connect"); exists {
+			adapter := newAdapter("ws-server-connect", connection, nil, 0)
+			for _, fn := range fns {
+				fn(adapter)
+			}
+		}
+	}()
 	channel.readLoop(conn, connection)
+	go func() {
+		if fns, exists := channel.readers.GetEx("ws-server-disconnect"); exists {
+			adapter := newAdapter("ws-server-disconnect", connection, nil, 0)
+			for _, fn := range fns {
+				fn(adapter)
+			}
+		}
+	}()
 	connection.Close()
 }
 
@@ -101,6 +117,16 @@ func (channel *Channel) readLoop(conn connIface, connection *Connection) {
 // Read is client message (request) handler
 func (channel *Channel) Read(command string, fn func(*Adapter)) {
 	channel.readers.Set(command, fn)
+}
+
+// AddConnectFunc add new Connect handler
+func (channel *Channel) AddConnectFunc(fn func(a *Adapter)) {
+	channel.readers.Set("ws-server-connect", fn)
+}
+
+// AddDisconnectFunc add new Disconnect handler
+func (channel *Channel) AddDisconnectFunc(fn func(a *Adapter)) {
+	channel.readers.Set("ws-server-disconnect", fn)
 }
 
 // Close ws instance connections
@@ -170,6 +196,16 @@ func (channel *Channel) GetConnects() (connectIDs map[uint64]*Connection) {
 }
 
 // GetUsers from Channel
-func (channel *Channel) GetUsers() (connectIDs map[interface{}]*User) {
+func (channel *Channel) GetUsers() (userIDs map[interface{}]*User) {
 	return channel.users.Copy()
+}
+
+// Count of connections
+func (channel *Channel) Count() int {
+	return channel.connMap.Len()
+}
+
+// UsersCount is count of users
+func (channel *Channel) UsersCount() int {
+	return channel.connMap.Len()
 }
