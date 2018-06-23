@@ -164,11 +164,12 @@ func (channel *Channel) subscribeReader() {
 	})
 }
 
-// GetConnectIDs from Channel
-func (channel *Channel) GetConnectIDs() (connectIDs map[uint64]bool) {
-	connectIDs = map[uint64]bool{}
-	for k := range channel.connMap.Copy() {
-		connectIDs[k] = true
-	}
-	return
+// GetConnects from Channel
+func (channel *Channel) GetConnects() (connectIDs map[uint64]*Connection) {
+	return channel.connMap.Copy()
+}
+
+// GetUsers from Channel
+func (channel *Channel) GetUsers() (connectIDs map[interface{}]*User) {
+	return channel.users.Copy()
 }

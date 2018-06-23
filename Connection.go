@@ -165,6 +165,9 @@ func (c *Connection) Close() {
 
 		c.user.connMap.Delete(c.ID())
 		c.channel.connMap.Delete(c.ID())
+		if c.user.connMap.Len() == 0 {
+			c.channel.users.Delete(c.user.ID())
+		}
 	}
 }
 

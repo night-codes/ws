@@ -7,28 +7,28 @@ import (
 // *User map
 type usersMap struct {
 	sync.RWMutex
-	connects map[interface{}]*User
+	users map[interface{}]*User
 }
 
 func newUsersMap() *usersMap {
-	return &usersMap{connects: make(map[interface{}]*User)}
+	return &usersMap{users: make(map[interface{}]*User)}
 }
 
 func (m *usersMap) Set(key interface{}, val *User) {
 	m.Lock()
-	m.connects[key] = val
+	m.users[key] = val
 	m.Unlock()
 }
 
 func (m *usersMap) Delete(key interface{}) {
 	m.Lock()
-	delete(m.connects, key)
+	delete(m.users, key)
 	m.Unlock()
 }
 
 func (m *usersMap) Get(key interface{}) *User {
 	m.RLock()
-	v, _ := m.connects[key]
+	v, _ := m.users[key]
 	m.RUnlock()
 
 	return v
@@ -36,7 +36,7 @@ func (m *usersMap) Get(key interface{}) *User {
 
 func (m *usersMap) Len() int {
 	m.RLock()
-	n := len(m.connects)
+	n := len(m.users)
 	m.RUnlock()
 
 	return n
@@ -44,7 +44,19 @@ func (m *usersMap) Len() int {
 
 func (m *usersMap) GetEx(key interface{}) (*User, bool) {
 	m.RLock()
-	v, exists := m.connects[key]
+	v, exists := m.users[key]
 	m.RUnlock()
 	return v, exists
+}
+
+func (m *usersMap) Copy() (c map[interface{}]*User) {
+	c = make(map[interface{}]*User, len(m.users))
+
+	m.RLock()
+	for k := range m.users {
+		c[k] = m.users[k]
+	}
+	m.RUnlock()
+
+	return c
 }
