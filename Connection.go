@@ -52,20 +52,20 @@ func newConnection(connID uint64, channel *Channel, conn connIface, context NetC
 	case *tokay.Context:
 		c.origin = cc.GetHeader("Origin")
 		c.wsClient = len(cc.GetHeader("ws-client")) > 0
-		c.setUser(cc.Get("UserID"))
+		c.setUser(cc.Get("userID"))
 	case *gin.Context:
 		c.origin = cc.Request.Header.Get("Origin")
 		c.wsClient = len(cc.Request.Header.Get("ws-client")) > 0
-		user, _ := cc.Get("UserID")
+		user, _ := cc.Get("userID")
 		c.setUser(user)
 	case *fasthttp.RequestCtx:
 		c.origin = string(cc.Request.Header.Peek("Origin"))
 		c.wsClient = len(string(cc.Request.Header.Peek("ws-client"))) > 0
-		c.setUser(cc.UserValue("UserID"))
+		c.setUser(cc.UserValue("userID"))
 	case *http.Request:
 		c.origin = cc.Header.Get("Origin")
 		c.wsClient = len(cc.Header.Get("ws-client")) > 0
-		c.setUser(cc.Context().Value("UserID"))
+		c.setUser(cc.Context().Value("userID"))
 		// Example:
 		// import "net/http"
 		// import "context"
