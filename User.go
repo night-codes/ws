@@ -62,3 +62,13 @@ func (u *User) Close() {
 		v.Close()
 	}
 }
+
+// GetConnects returns User connections
+func (u *User) GetConnects() (connectIDs map[uint64]*Connection) {
+	return u.connMap.Copy()
+}
+
+// Count of connections
+func (u *User) Count() int {
+	return u.connMap.Len()
+}
