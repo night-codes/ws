@@ -13,13 +13,14 @@ import (
 // Channel is websocket route
 type (
 	Channel struct {
-		connMap  *connMap
-		users    *usersMap
-		subscrs  *subscrMap
-		readers  *readersMap
-		requests *requestsMap
-		closeCh  chan bool
-		closed   bool
+		connMap   *connMap
+		users     *usersMap
+		subscrs   *subscrMap
+		readers   *readersMap
+		requests  *requestsMap
+		closeCh   chan bool
+		closed    bool
+		UseBinary bool
 	}
 
 	messageStruct struct {

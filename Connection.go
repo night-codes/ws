@@ -32,7 +32,6 @@ type Connection struct {
 	context         NetContext
 	requestID       int64
 	timeout         time.Duration
-	UseBinary       bool
 	origin          string
 }
 
@@ -251,7 +250,7 @@ func (c *Connection) Send(command string, message interface{}, requestID ...int6
 		}
 
 		wstype := websocket.TextMessage
-		if c.UseBinary {
+		if c.channel.UseBinary {
 			wstype = websocket.BinaryMessage
 		}
 
