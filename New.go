@@ -83,7 +83,6 @@ func NewGin(path string, r *gin.RouterGroup, bufferSizes ...int) *Channel {
 		if conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil); err == nil {
 			channel.handler(conn, cc)
 		} else {
-			fmt.Println(err.Error())
 			c.String(http.StatusBadRequest, "Failed to set websocket upgrade.")
 		}
 	})
