@@ -17,6 +17,11 @@ type (
 	Map map[string]interface{}
 )
 
+var (
+	// CheckOrigin wsUpgrader function
+	CheckOrigin func(request interface{}) bool
+)
+
 // New makes new Channel with "net/http".Request
 func New(bufferSizes ...int) (http.HandlerFunc, *Channel) {
 	channel := newChannel()
@@ -34,20 +39,17 @@ func New(bufferSizes ...int) (http.HandlerFunc, *Channel) {
 // NewFasthttp makes new Channel with "github.com/valyala/fasthttp".RequestCtx
 func NewFasthttp(bufferSizes ...int) (fasthttp.RequestHandler, *Channel) {
 	channel := newChannel()
-	if len(bufferSizes) == 0 {
-		bufferSizes = append(bufferSizes, 4096, 4096)
-	} else if len(bufferSizes) == 1 {
-		bufferSizes = append(bufferSizes, bufferSizes[0])
-	}
+	wsupgrader := getFastUpgrader(bufferSizes...)
 
 	return func(ctx *fasthttp.RequestCtx) {
 		copyCtx := &fasthttp.RequestCtx{}
 		ctx.Request.CopyTo(&copyCtx.Request)
 		ctx.Response.CopyTo(&copyCtx.Response)
 
-		if err := tokayWebsocket.Upgrade(ctx, func(conn *tokayWebsocket.Conn) {
+		wsupgrader.Receiver = func(conn *tokayWebsocket.Conn) {
 			channel.handler(conn, copyCtx)
-		}, bufferSizes[0], bufferSizes[1]); err != nil {
+		}
+		if err := wsupgrader.Upgrade(ctx); err != nil {
 			ctx.SetStatusCode(http.StatusBadRequest)
 			fmt.Fprintf(ctx, "Failed to set websocket upgrade.")
 		}
@@ -57,11 +59,15 @@ func NewFasthttp(bufferSizes ...int) (fasthttp.RequestHandler, *Channel) {
 // NewTokay makes new Channel with "github.com/night-codes/tokay".RouterGroup
 func NewTokay(path string, r *tokay.RouterGroup, bufferSizes ...int) *Channel {
 	channel := newChannel()
+	wsupgrader := getFastUpgrader(bufferSizes...)
+
 	r.GET(path, func(c *tokay.Context) {
 		cc := c.Copy()
-		if err := c.Websocket(func() {
-			channel.handler(c.WSConn, cc)
-		}, bufferSizes...); err != nil {
+		wsupgrader.Receiver = func(conn *tokayWebsocket.Conn) {
+			cc.WSConn = conn
+			channel.handler(conn, cc)
+		}
+		if err := wsupgrader.Upgrade(c.RequestCtx); err != nil {
 			c.String(http.StatusBadRequest, "Failed to set websocket upgrade.")
 		}
 	})
@@ -77,6 +83,7 @@ func NewGin(path string, r *gin.RouterGroup, bufferSizes ...int) *Channel {
 		if conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil); err == nil {
 			channel.handler(conn, cc)
 		} else {
+			fmt.Println(err.Error())
 			c.String(http.StatusBadRequest, "Failed to set websocket upgrade.")
 		}
 	})
@@ -89,8 +96,32 @@ func getWsupgrader(bufferSizes ...int) *websocket.Upgrader {
 	} else if len(bufferSizes) == 1 {
 		bufferSizes = append(bufferSizes, bufferSizes[0])
 	}
-	return &websocket.Upgrader{
+	socket := &websocket.Upgrader{
 		ReadBufferSize:  bufferSizes[0],
 		WriteBufferSize: bufferSizes[1],
 	}
+	if CheckOrigin != nil {
+		socket.CheckOrigin = func(r *http.Request) bool {
+			return CheckOrigin(r)
+		}
+	}
+	return socket
+}
+
+func getFastUpgrader(bufferSizes ...int) *tokayWebsocket.Upgrader {
+	if len(bufferSizes) == 0 {
+		bufferSizes = append(bufferSizes, 4096, 4096)
+	} else if len(bufferSizes) == 1 {
+		bufferSizes = append(bufferSizes, bufferSizes[0])
+	}
+	socket := &tokayWebsocket.Upgrader{
+		ReadBufferSize:  bufferSizes[0],
+		WriteBufferSize: bufferSizes[1],
+	}
+	if CheckOrigin != nil {
+		socket.CheckOrigin = func(r *fasthttp.RequestCtx) bool {
+			return CheckOrigin(r)
+		}
+	}
+	return socket
 }
