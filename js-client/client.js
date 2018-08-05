@@ -1,12 +1,18 @@
 (function (factory) {
     if (typeof define === 'function' && define.amd) {
-        define("ws", ["exports"], factory);
+        define(["exports"], factory);
     } else if (typeof exports === 'object') {
         factory(exports);
     } else {
-        factory(global || window);
+        factory(typeof global !== undefined ? global : window);
     }
 }(function (exports) {
+    "use strict";
+    if (typeof exports === 'undefined') {
+        exports = {};
+    }
+
+
     var channels = {};
 
     function createWebSocket(path) {
@@ -15,7 +21,7 @@
 
 
     function Channel(url) {
-        var global = global || window;
+        var global = typeof global !== undefined ? global : window;
         var document = global.document;
         var sock = null;
         var prevID = 0;
@@ -213,6 +219,7 @@
         };
     }
 
+
     exports.getChannel = function (url) {
         if (typeof url !== 'string') {
             return null;
@@ -224,5 +231,7 @@
 
         return channels[url];
     };
+
+    return exports;
 
 }));
