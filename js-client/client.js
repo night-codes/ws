@@ -26,7 +26,9 @@
 		var sock = null;
 		var prevID = 0;
 		var requestTimeout = 30;
-		var self = this;
+		var self = this;		
+		var waitOk = {};
+
 		var cid = "" + (Math.random().toFixed(16).substring(2) + new Date().valueOf()) + url;
 
 		function on(type, fn) {
@@ -84,12 +86,15 @@
 					return;
 				}
 
-				if (result.requestID > 0) {
-					trigger("request:" + result.command + ":" + result.requestID, result.data);
-				} else {
-					trigger("read:" + result.command, result);
+				if (result && result.command) {
+					if (result.requestID > 0) {
+						trigger("request:" + result.command + ":" + result.requestID, result.data);
+					} else {
+						trigger("read:" + result.command, result);
+					}
+					trigger("came", result.command);
+					waitOk[result.command] = true;
 				}
-				trigger("came", result.command);
 			}
 
 			sock = createWebSocket(url);
@@ -202,7 +207,9 @@
 		self.wait = function (commands, callback) {
 			var cmds = {};
 			commands.forEach(function (command) {
-				cmds[command] = true;
+				if (!waitOk[command]) {
+					cmds[command] = true;
+				}
 			});
 
 			function wt(command) {
