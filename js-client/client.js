@@ -16,7 +16,8 @@
 	var channels = {};
 
 	function createWebSocket(path) {
-		return new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + path);
+		path = (path.indexOf('ws://') === 0 || path.indexOf('wss://') === 0) ? path : (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + path
+		return new WebSocket(path);
 	}
 
 
