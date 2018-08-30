@@ -59,6 +59,7 @@ func (channel *Channel) handler(conn connIface, context NetContext) {
 	go func() {
 		if fns, exists := channel.readers.GetEx("ws-server-connect"); exists {
 			adapter := newAdapter("ws-server-connect", connection, nil, 0)
+			adapter.multiSend = true
 			for _, fn := range fns {
 				fn(adapter)
 			}
@@ -68,6 +69,7 @@ func (channel *Channel) handler(conn connIface, context NetContext) {
 	go func() {
 		if fns, exists := channel.readers.GetEx("ws-server-disconnect"); exists {
 			adapter := newAdapter("ws-server-disconnect", connection, nil, 0)
+			adapter.sent = true
 			for _, fn := range fns {
 				fn(adapter)
 			}
