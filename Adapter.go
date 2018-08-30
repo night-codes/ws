@@ -15,6 +15,7 @@ type (
 		data       *[]byte
 		requestID  int64
 		sent       bool
+		multiSend  bool
 	}
 	// NetContext is used network context, like *tokay.Context, *gin.Context, echo.Context etc.
 	NetContext interface{}
@@ -62,7 +63,7 @@ func (a *Adapter) Command() string {
 
 // Send message to open connection
 func (a *Adapter) Send(message interface{}) error {
-	if a.sent {
+	if a.sent && !a.multiSend{
 		return fmt.Errorf("Adaper already sent")
 	}
 	a.sent = true
