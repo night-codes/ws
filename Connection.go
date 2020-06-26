@@ -13,7 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/night-codes/tokay"
-	"github.com/night-codes/tokay-websocket"
+	websocket "github.com/night-codes/tokay-websocket"
 	"gopkg.in/night-codes/types.v1"
 )
 
@@ -117,7 +117,7 @@ func (c *Connection) Request(command string, message interface{}, timeout ...tim
 	select {
 	case result := <-resultCh:
 		return result, nil
-	case <-time.Tick(timeoutD):
+	case <-time.After(timeoutD):
 		c.channel.requests.Delete(requestID)
 		return []byte{}, fmt.Errorf("\"%s\" request timeout", command)
 	}

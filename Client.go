@@ -84,7 +84,7 @@ func (c *Client) Request(command string, message interface{}, timeout ...time.Du
 	select {
 	case result := <-resultCh:
 		return result, nil
-	case <-time.Tick(timeoutD):
+	case <-time.After(timeoutD):
 		c.requests.Delete(requestID)
 		return []byte{}, fmt.Errorf("\"%s\" request timeout", command)
 	}
