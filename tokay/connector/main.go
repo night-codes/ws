@@ -14,12 +14,12 @@ var (
 	CheckOrigin func(request interface{}) bool
 )
 
-// New makes new Channel with "github.com/night-codes/tokay".RouterGroup
-func New(path string, r *tokay.RouterGroup, bufferSizes ...int) *ws.Channel {
+// New makes new Channel with "github.com/night-codes/tokay"
+func New(path string, bufferSizes ...int) (tokay.Handler, *ws.Channel) {
 	channel := ws.NewChannel()
 	wsupgrader := getFastUpgrader(bufferSizes...)
 
-	r.GET(path, func(c *tokay.Context) {
+	return func(c *tokay.Context) {
 		cc := c.Copy()
 		wsupgrader.Receiver = func(conn *tokayWebsocket.Conn) {
 			cc.WSConn = conn
@@ -28,8 +28,7 @@ func New(path string, r *tokay.RouterGroup, bufferSizes ...int) *ws.Channel {
 		if err := wsupgrader.Upgrade(c.RequestCtx); err != nil {
 			c.String(http.StatusBadRequest, "Failed to set websocket upgrade.")
 		}
-	})
-	return channel
+	}, channel
 }
 
 func getFastUpgrader(bufferSizes ...int) *tokayWebsocket.Upgrader {

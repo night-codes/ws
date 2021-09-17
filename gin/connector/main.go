@@ -13,19 +13,18 @@ var (
 	CheckOrigin func(request interface{}) bool
 )
 
-// New makes new Channel with "github.com/gin-gonic/gin".RouterGroup
-func New(path string, r *gin.RouterGroup, bufferSizes ...int) *ws.Channel {
+// New makes new Channel with "github.com/gin-gonic/gin"
+func New(path string, bufferSizes ...int) (gin.HandlerFunc, *ws.Channel) {
 	channel := ws.NewChannel()
 	wsupgrader := getWsupgrader(bufferSizes...)
-	r.GET(path, func(c *gin.Context) {
+	return func(c *gin.Context) {
 		cc := c.Copy()
 		if conn, err := wsupgrader.Upgrade(c.Writer, c.Request, nil); err == nil {
 			channel.Handler(conn, cc)
 		} else {
 			c.String(http.StatusBadRequest, "Failed to set websocket upgrade.")
 		}
-	})
-	return channel
+	}, channel
 }
 
 // getWsupgrader create new *websocket.Upgrader
