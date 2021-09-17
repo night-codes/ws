@@ -1,4 +1,7 @@
-# Binaries for programs and plugins
+.DS_Store
+._*
+go.sum
+
 *.exe
 *.exe~
 *.dll

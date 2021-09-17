@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -23,7 +24,8 @@ type (
 		conn          *websocket.Conn
 		send          chan *sndMsg
 		requestID     int64
-		subscriptions []string
+		subLock       sync.RWMutex
+		subscriptions map[string]bool
 		readers       *readersMap
 		requests      *requestsMap
 		timeout       time.Duration
@@ -51,13 +53,15 @@ func NewClient(url string, debug ...bool) *Client {
 			Proxy:            http.ProxyFromEnvironment,
 			HandshakeTimeout: time.Second,
 		},
-		send:      make(chan *sndMsg, 100000),
-		readers:   newReaderMap(),
-		requests:  newRequestsMap(),
-		timeout:   time.Second * 30,
-		debug:     debug[0],
-		Reconnect: events.New(),
-		chBreak:   make(chan bool, 2),
+		send:          make(chan *sndMsg, 100000),
+		subLock:       sync.RWMutex{},
+		subscriptions: map[string]bool{},
+		readers:       newReaderMap(),
+		requests:      newRequestsMap(),
+		timeout:       time.Second * 30,
+		debug:         debug[0],
+		Reconnect:     events.New(),
+		chBreak:       make(chan bool, 2),
 	}
 
 	go ws.connect()
@@ -126,15 +130,24 @@ func (c *Client) ChangeURL(url string) {
 	c.chBreak <- true
 }
 
+// Close client connection
+func (c *Client) Close() {
+	c.url = ""
+	c.chBreak <- true
+}
+
 func (c *Client) connect() {
 	for {
-		func() {
+		close := func() bool {
+			if c.url == "" {
+				return true
+			}
 			var err error
 			c.conn, _, err = c.dialer.Dial(c.url, http.Header{
 				"ws-client": []string{"true"},
 			})
 			if err != nil {
-				return
+				return false
 			}
 
 			if c.debug {
@@ -154,7 +167,14 @@ func (c *Client) connect() {
 				}
 			}()
 
-			for _, command := range c.subscriptions {
+			cmds := []string{}
+			c.subLock.RLock()
+			for command := range c.subscriptions {
+				cmds = append(cmds, command)
+			}
+			c.subLock.RUnlock()
+
+			for _, command := range cmds {
 				c.Send("subscribe", command)
 			}
 
@@ -191,6 +211,9 @@ func (c *Client) connect() {
 						}
 					}
 				case <-c.chBreak:
+					if c.url == "" {
+						return true
+					}
 					break cycle
 				}
 			}
@@ -201,7 +224,12 @@ func (c *Client) connect() {
 			c.connected = false
 			c.conn.Close()
 			closed <- true
+			return false
 		}()
+
+		if close {
+			return
+		}
 
 		time.Sleep(time.Second / 20)
 	}
@@ -212,15 +240,18 @@ func (c *Client) Subscribe(command string) {
 	if c.connected {
 		c.Send("subscribe", command)
 	}
+	c.subLock.Lock()
+	c.subscriptions[command] = true
+	c.subLock.Unlock()
+}
 
-	found := false
-	for _, v := range c.subscriptions {
-		if v == command {
-			found = true
-		}
-	}
-	if !found {
-		c.subscriptions = append(c.subscriptions, command)
+// UnSubscribe from command
+func (c *Client) UnSubscribe(command string) {
+	c.subLock.Lock()
+	delete(c.subscriptions, command)
+	c.subLock.Unlock()
+	if c.connected {
+		c.ChangeURL(c.url)
 	}
 }
 
