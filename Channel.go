@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"gopkg.in/night-codes/types.v1"
+	"github.com/night-codes/conv"
 )
 
 // Channel is websocket route
@@ -28,7 +28,7 @@ type (
 		Err     error
 	}
 
-	connIface interface {
+	ConnIface interface {
 		SetReadLimit(limit int64)
 		ReadMessage() (messageType int, p []byte, err error)
 		WriteMessage(messageType int, data []byte) error
@@ -38,7 +38,8 @@ type (
 
 var nextConnID uint64
 
-func newChannel() *Channel {
+// NewChannel creates new ws.Channel
+func NewChannel() *Channel {
 	return &Channel{
 		connMap:  newConnMap(),
 		users:    newUsersMap(),
@@ -49,8 +50,8 @@ func newChannel() *Channel {
 	}
 }
 
-// tokay websocket handler
-func (channel *Channel) handler(conn connIface, context NetContext) {
+// Handler add websocket handler
+func (channel *Channel) Handler(conn ConnIface, context NetContext) {
 	if channel.closed {
 		return
 	}
@@ -78,7 +79,7 @@ func (channel *Channel) handler(conn connIface, context NetContext) {
 	connection.Close()
 }
 
-func (channel *Channel) readLoop(conn connIface, connection *Connection) {
+func (channel *Channel) readLoop(conn ConnIface, connection *Connection) {
 	for {
 		resultCh := make(chan *messageStruct)
 
@@ -95,7 +96,7 @@ func (channel *Channel) readLoop(conn connIface, connection *Connection) {
 			go func(message []byte) {
 				var result = bytes.SplitN(message, []byte(":"), 3)
 				if len(result) == 3 {
-					requestID := types.Int64(result[0])
+					requestID := conv.Int64(result[0])
 					command := string(result[1])
 					data := result[2]
 					if requestID < 0 { // answer to the request from server

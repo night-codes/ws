@@ -11,7 +11,7 @@ import (
 	"github.com/night-codes/events"
 
 	"github.com/gorilla/websocket"
-	"gopkg.in/night-codes/types.v1"
+	"github.com/night-codes/conv"
 )
 
 type (
@@ -147,7 +147,7 @@ func (c *Client) connect() {
 				for {
 					select {
 					case msg := <-c.send:
-						c.conn.WriteMessage(websocket.TextMessage, append([]byte(types.String(msg.requestID)+":"+msg.command+":"), msg.data...))
+						c.conn.WriteMessage(websocket.TextMessage, append([]byte(conv.String(msg.requestID)+":"+msg.command+":"), msg.data...))
 					case <-closed:
 						return
 					}
@@ -173,7 +173,7 @@ func (c *Client) connect() {
 				case message := <-chMessage:
 					result := bytes.SplitN(message, []byte(":"), 3)
 					if len(result) == 3 {
-						requestID := types.Int64(result[0])
+						requestID := conv.Int64(result[0])
 						command := string(result[1])
 						data := result[2]
 

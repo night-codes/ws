@@ -1,13 +1,14 @@
 module github.com/night-codes/ws
 
-go 1.11
+go 1.16
 
 require (
-	github.com/gin-gonic/gin v1.6.3
+	github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072
+	github.com/gin-gonic/gin v1.7.4
 	github.com/gorilla/websocket v1.4.2
+	github.com/night-codes/conv v1.0.2
 	github.com/night-codes/events v1.0.2
-	github.com/night-codes/tokay v1.3.7
+	github.com/night-codes/tokay v1.4.2
 	github.com/night-codes/tokay-websocket v1.0.0
-	github.com/valyala/fasthttp v1.14.0
-	gopkg.in/night-codes/types.v1 v1.2.1
+	github.com/valyala/fasthttp v1.30.0
 )

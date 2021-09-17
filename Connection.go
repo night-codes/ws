@@ -12,31 +12,36 @@ import (
 	"github.com/valyala/fasthttp"
 
 	"github.com/gin-gonic/gin"
+	"github.com/night-codes/conv"
 	"github.com/night-codes/tokay"
 	websocket "github.com/night-codes/tokay-websocket"
-	"gopkg.in/night-codes/types.v1"
 )
 
-// Connection instance
-// [Copying Connection by value is forbidden. Use pointer to Connection instead.]
-type Connection struct {
-	id              uint64
-	user            *User
-	conn            connIface
-	closed          bool
-	subscribes      map[string]bool
-	subscribesMutex sync.RWMutex
-	writeMutex      sync.RWMutex
-	wsClient        bool
-	channel         *Channel
-	context         NetContext
-	requestID       int64
-	timeout         time.Duration
-	origin          string
-}
+type (
+	// Connection instance
+	// [Copying Connection by value is forbidden. Use pointer to Connection instead.]
+	Connection struct {
+		id              uint64
+		user            *User
+		conn            ConnIface
+		closed          bool
+		subscribes      map[string]bool
+		subscribesMutex sync.RWMutex
+		writeMutex      sync.RWMutex
+		wsClient        bool
+		channel         *Channel
+		context         NetContext
+		requestID       int64
+		timeout         time.Duration
+		origin          string
+	}
+
+	// Map is alias for map[string]interface{}
+	Map map[string]interface{}
+)
 
 // NewConnection creates new *Connection instance
-func newConnection(connID uint64, channel *Channel, conn connIface, context NetContext) *Connection {
+func newConnection(connID uint64, channel *Channel, conn ConnIface, context NetContext) *Connection {
 	c := &Connection{
 		id:         connID,
 		channel:    channel,
@@ -229,9 +234,9 @@ func (c *Connection) Send(command string, message interface{}, requestID ...int6
 				msg = &m
 			}
 
-			strRequestID := types.String(reqID)
+			strRequestID := conv.String(reqID)
 			if srvReqID != 0 {
-				strRequestID = types.String(srvReqID)
+				strRequestID = conv.String(srvReqID)
 			}
 			*msg = append([]byte(strRequestID+":"+command+":"), *msg...)
 		} else {

@@ -9,6 +9,7 @@ Simple to use golang websocket client/server library + vanilla js client library
         "log"
         "time"
         "github.com/night-codes/ws"
+        "github.com/night-codes/ws/fasthttp/connector"
         "github.com/valyala/fasthttp"
     )
 
@@ -21,7 +22,7 @@ Simple to use golang websocket client/server library + vanilla js client library
 
     // === SERVER ===
     func server() {
-        handler, mainWS := ws.NewFasthttp()
+        handler, mainWS := connector.New()
         // handler, mainWS := ws.New()     // [net/http]
 
         // Listen command from the client and send answer
