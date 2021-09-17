@@ -15,7 +15,7 @@ var (
 )
 
 // New makes new Channel with "github.com/night-codes/tokay"
-func New(path string, bufferSizes ...int) (tokay.Handler, *ws.Channel) {
+func New(bufferSizes ...int) (tokay.Handler, *ws.Channel) {
 	channel := ws.NewChannel()
 	wsupgrader := getFastUpgrader(bufferSizes...)
 

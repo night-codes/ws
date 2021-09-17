@@ -14,7 +14,7 @@ var (
 )
 
 // New makes new Channel with "github.com/gin-gonic/gin"
-func New(path string, bufferSizes ...int) (gin.HandlerFunc, *ws.Channel) {
+func New(bufferSizes ...int) (gin.HandlerFunc, *ws.Channel) {
 	channel := ws.NewChannel()
 	wsupgrader := getWsupgrader(bufferSizes...)
 	return func(c *gin.Context) {
