@@ -5,84 +5,101 @@ Simple to use golang websocket client/server library + vanilla js client library
 ```go
     package main
 
-    import (
-        "log"
-        "time"
-        "github.com/night-codes/ws"
-        "github.com/night-codes/ws/fasthttp/connector"
-        "github.com/valyala/fasthttp"
-    )
+import (
+	"log"
+	"net/http"
+	"time"
 
-    func main() {
-        go server()
-        time.Sleep(time.Second)
-        go client()
-        time.Sleep(time.Second * 5)
-    }
+	"github.com/night-codes/ws"
+	// "github.com/night-codes/ws/fasthttp/connector"
+	// "github.com/night-codes/ws/tokay/connector"
+	// "github.com/night-codes/ws/gin/connector"
+	"github.com/night-codes/ws/http/connector"
+)
 
-    // === SERVER ===
-    func server() {
-        handler, mainWS := connector.New()
-        // handler, mainWS := ws.New()     // [net/http]
+func main() {
+	go server()
+	time.Sleep(time.Second)
+	go client()
+	time.Sleep(time.Second * 5)
+}
 
-        // Listen command from the client and send answer
-        mainWS.Read("test", func(a *ws.Adapter) {
-            data := a.Data()
-            log.Println("1)", string(data))
-            a.Send("pong")
-        })
+// === SERVER ===
+func server() {
+	handler, mainWS := connector.New()
 
-        // Listen command from the client without answer
-        mainWS.Read("command", func(a *ws.Adapter) {
-            data := a.Data()
-            log.Println("3)", string(data))
-        })
+	// Listen command from the client and send answer
+	mainWS.Read("test", func(a *ws.Adapter) {
+		data := a.Data()
+		log.Println("1)", string(data))
+		a.Send("pong")
+	})
 
-        // Send command to each client and wait for answer
-        go func() {
-            time.Sleep(time.Second * 2)
-            for _, conn := range mainWS.GetConnects() {
-                if result, err := conn.Request("client test", "client ping", time.Second); err == nil {
-                    log.Println("5)", string(result))
-                }
-            }
-        }()
+	// Listen command from the client without answer
+	mainWS.Read("command", func(a *ws.Adapter) {
+		data := a.Data()
+		log.Println("3)", string(data))
+	})
 
-        // Listen and serve:
-        fasthttp.ListenAndServe(":8080", func(ctx *fasthttp.RequestCtx) {
-            switch string(ctx.Path()) {
-            case "/myws":
-                handler(ctx)
-            default:
-                ctx.Error("Unsupported path", fasthttp.StatusNotFound)
-            }
-        })
+	// Send command to each client and wait for answer
+	go func() {
+		time.Sleep(time.Second * 2)
+		for _, conn := range mainWS.GetConnects() {
+			if result, err := conn.Request("client test", "client ping", time.Second); err == nil {
+				log.Println("5)", string(result))
+			}
+		}
+	}()
 
-        // http.Handle("/myws", handler)    // [net/http]
-        // log.Fatal(http.ListenAndServe(":8080", nil))
-    }
+	// Listen and serve:
 
-    // === CLIENT ===
-    func client() {
-        conn := ws.NewClient("ws://localhost:8080/myws")
+	// net/http:
+	http.Handle("/myws", handler) // [net/http]
+	log.Fatal(http.ListenAndServe(":8080", nil))
 
-        // Send command to the server and wait for answer
-        if result, err := conn.Request("test", "ping", time.Second); err == nil {
-            log.Println("2)", string(result))
-        }
+	// fasthttp:
+	/* fasthttp.ListenAndServe(":8080", func(ctx *fasthttp.RequestCtx) {
+		switch string(ctx.Path()) {
+		case "/myws":
+			handler(ctx)
+		default:
+			ctx.Error("Unsupported path", fasthttp.StatusNotFound)
+		}
+	}) */
 
-        // Send command to the server without answer waiting
-        conn.Send("command", "Server command 1")
-        conn.Send("command", "Server command 2")
-        conn.Send("command", "Server command 3")
+	// tokay
+	/* app := tokay.New()
+	app.GET("/myws", handler)
+	panic(app.Run(":8080", "Application started at %s")) */
 
-        // Listen command from the server
-        conn.Read("client test", func(a *ws.Adapter) {
-            data := a.Data()
-            log.Println("4)", string(data))
-            a.Send("client pong")
-        })
-    }
+	// gin
+	/* app := gin.New()
+	app.GET("/myws", handler)
+	panic(app.Run(":8080")) */
+}
+
+// === CLIENT ===
+func client() {
+	conn := ws.NewClient("ws://localhost:8080/myws")
+
+	// Send command to the server and wait for answer
+	if result, err := conn.Request("test", "ping", time.Second); err == nil {
+		log.Println("2)", string(result))
+	}
+
+	// Send command to the server without answer waiting
+	conn.Send("command", "Server command 1")
+	conn.Send("command", "Server command 2")
+	conn.Send("command", "Server command 3")
+
+	// Listen command from the server
+	conn.Read("client test", func(a *ws.Adapter) {
+		data := a.Data()
+		log.Println("4)", string(data))
+		a.Send("client pong")
+	})
+}
+
 ```
 
 ## MIT License
