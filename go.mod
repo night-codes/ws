@@ -10,5 +10,5 @@ require (
 	github.com/night-codes/events v1.0.2
 	github.com/night-codes/tokay v1.4.2
 	github.com/night-codes/tokay-websocket v1.0.0
-	github.com/valyala/fasthttp v1.30.0
+	github.com/valyala/fasthttp v1.34.0
 )
